@@ -397,6 +397,7 @@ export function gooseRestRouter<T>(
       builtQuery = builtQuery.sort(options.sort);
     }
 
+    // TODO: we should handle nested serializers here.
     for (const populatePath of options.populatePaths ?? []) {
       builtQuery = builtQuery.populate(populatePath);
     }

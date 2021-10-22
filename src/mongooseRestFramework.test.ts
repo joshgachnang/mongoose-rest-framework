@@ -501,9 +501,12 @@ describe("goose", () => {
   let carrots: Food;
 
   describe("list options", function() {
+    let notAdmin: any;
+    let admin: any;
+
     beforeEach(async function() {
       await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
-      const [notAdmin, admin] = await Promise.all([
+      [notAdmin, admin] = await Promise.all([
         UserModel.create({username: "notAdmin"}),
         UserModel.create({username: "admin", admin: true}),
       ]);
@@ -553,6 +556,7 @@ describe("goose", () => {
           sort: {created: "descending"},
           defaultQueryParams: {hidden: false},
           queryFields: ["hidden", "calories"],
+          populatePaths: ["ownerId"],
         })
       );
       server = supertest(app);
@@ -562,6 +566,14 @@ describe("goose", () => {
       const res = await server.get("/food?limit=1").expect(200);
       assert.lengthOf(res.body.data, 1);
       assert.equal(res.body.data[0].id, (spinach as any).id);
+      assert.equal(res.body.data[0].ownerId._id, notAdmin.id);
+    });
+
+    it("list limit over", async function() {
+      const res = await server.get("/food?limit=4").expect(200);
+      assert.lengthOf(res.body.data, 2);
+      assert.equal(res.body.data[0].id, (spinach as any).id);
+      assert.equal(res.body.data[1].id, (carrots as any).id);
     });
 
     it("list page", async function() {
@@ -569,6 +581,12 @@ describe("goose", () => {
       const res = await server.get("/food?limit=1&page=2").expect(200);
       assert.lengthOf(res.body.data, 1);
       assert.equal(res.body.data[0].id, (carrots as any).id);
+    });
+
+    it("list page over", async function() {
+      // Should skip to carrots since apples are hidden
+      const res = await server.get("/food?limit=1&page=4").expect(200);
+      assert.lengthOf(res.body.data, 0);
     });
 
     it("list query params", async function() {

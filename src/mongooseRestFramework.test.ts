@@ -10,9 +10,9 @@ import {
   setupAuth,
 } from "./mongooseRestFramework";
 
-mongoose.connect("mongodb://localhost:27017/testAvo");
-
 const assert = chai.assert;
+
+mongoose.connect("mongodb://localhost:27017/testAvo");
 
 interface User {
   admin: boolean;
@@ -63,7 +63,7 @@ function getBaseServer(): Express {
   return app;
 }
 
-describe("goose", () => {
+describe("mongoose rest framework", () => {
   let server: supertest.SuperTest<supertest.Test>;
   let app: express.Application;
 

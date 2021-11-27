@@ -11,8 +11,12 @@ import {
 } from "./mongooseRestFramework";
 
 const assert = chai.assert;
-
-mongoose.connect("mongodb://localhost:27017/testAvo");
+const JWTOptions = {
+  sessionSecret: "cats",
+  jwtSecret: "secret",
+  jwtIssuer: "example.com",
+};
+mongoose.connect("mongodb://localhost:27017/mrf");
 
 interface User {
   admin: boolean;
@@ -99,7 +103,7 @@ describe("mongoose rest framework", () => {
         }),
       ]);
       app = getBaseServer();
-      setupAuth(app, UserModel as any, {sessionSecret: "cats"});
+      setupAuth(app, UserModel as any, JWTOptions);
       app.use(
         "/food",
         gooseRestRouter(FoodModel, {
@@ -117,14 +121,14 @@ describe("mongoose rest framework", () => {
 
     describe("anonymous food", function() {
       it("list", async function() {
-        const res = await server.get("/food");
+        const res = await server.get("/food").expect(200);
         assert.lengthOf(res.body.data, 2);
       });
 
       it("get", async function() {
-        const res = await server.get("/food");
+        const res = await server.get("/food").expect(200);
         assert.lengthOf(res.body.data, 2);
-        const res2 = await server.get(`/food/${res.body.data[0]._id}`);
+        const res2 = await server.get(`/food/${res.body.data[0]._id}`).expect(200);
         assert.equal(res.body.data[0]._id, res2.body.data._id);
       });
 
@@ -291,7 +295,7 @@ describe("mongoose rest framework", () => {
         }),
       ]);
       app = getBaseServer();
-      setupAuth(app, UserModel as any, {sessionSecret: "cats"});
+      setupAuth(app, UserModel as any, JWTOptions);
       app.use(
         "/food",
         gooseRestRouter(FoodModel, {
@@ -540,7 +544,7 @@ describe("mongoose rest framework", () => {
         }),
       ]);
       app = getBaseServer();
-      setupAuth(app, UserModel as any, {sessionSecret: "cats"});
+      setupAuth(app, UserModel as any, JWTOptions);
       app.use(
         "/food",
         gooseRestRouter(FoodModel, {

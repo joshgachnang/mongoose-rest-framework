@@ -749,6 +749,13 @@
   resolved "https://registry.yarnpkg.com/@types/normalize-package-data/-/normalize-package-data-2.4.1.tgz#d3357479a0fdfdd5907fe67e17e0a85c906e1301"
   integrity sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==
 
+"@types/passport-anonymous@^1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@types/passport-anonymous/-/passport-anonymous-1.0.3.tgz#87cb68d6b905288364120a1b978a01f7872195db"
+  integrity sha512-unE2IivuYx6LUHlHokKMebx2TVi/YhqnnwM/Z3teGa/HTsRKgpD0PWrjpbw15ES8K8QNSCnRmXb/NpOyTem0tA==
+  dependencies:
+    "@types/passport" "*"
+
 "@types/passport-jwt@^3.0.6":
   version "3.0.6"
   resolved "https://registry.yarnpkg.com/@types/passport-jwt/-/passport-jwt-3.0.6.tgz#41cc8b5803d5f5f06eb33e19c453b42716def4f1"
@@ -4675,12 +4682,12 @@ pascalcase@^0.1.1:
   resolved "https://registry.yarnpkg.com/pascalcase/-/pascalcase-0.1.1.tgz#b363e55e8006ca6fe21784d2db22bd15d7917f14"
   integrity sha1-s2PlXoAGym/iF4TS2yK9FdeRfxQ=
 
-passport-firebase-jwt@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/passport-firebase-jwt/-/passport-firebase-jwt-1.2.1.tgz#2bbd4c698ace9029cbd61cfa7e461767f5cb4a84"
-  integrity sha512-FuHKNsYW9My5JTRch98JVmuY2+Vh5QEv/Ol+e/iHeTfORy50dMsW9C8j8EsM4I66ESWfcZXhL1qyDxbql/9QKA==
+passport-anonymous@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/passport-anonymous/-/passport-anonymous-1.0.1.tgz#241e37274ec44dfb7f6cad234b41c438386bc117"
+  integrity sha1-JB43J07ETft/bK0jS0HEODhrwRc=
   dependencies:
-    passport-strategy "^1.0.0"
+    passport-strategy "1.x.x"
 
 passport-jwt@^4.0.0:
   version "4.0.0"

@@ -4,7 +4,8 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import mongoose, {Document, Model, Schema} from "mongoose";
 import passport from "passport";
-import {Strategy as FirebaseStrategy, ExtractJwt} from "passport-firebase-jwt";
+import {Strategy as JwtStrategy, ExtractJwt} from "passport-jwt";
+import {Strategy as AnonymousStrategy} from "passport-anonymous";
 
 // TODOS:
 // Firebase auth
@@ -30,9 +31,10 @@ interface User {
   id: string;
   admin: boolean;
   isAnonymous?: boolean;
+  token?: string;
 }
 
-interface UserModel extends Model<User> {
+export interface UserModel extends Model<User> {
   createStrategy(): any;
   serializeUser(): any;
   deserializeUser(): any;
@@ -52,7 +54,8 @@ interface RESTPermissions<T> {
 interface GooseRESTOptions<T> {
   permissions: RESTPermissions<T>;
   queryFields?: string[];
-  queryFilter?: (user?: User) => Record<string, any> | undefined;
+  // return null to prevent the query from runnning
+  queryFilter?: (user?: User) => Record<string, any> | null;
   transformer?: GooseTransformer<T>;
   sort?: string | {[key: string]: "ascending" | "descending"};
   defaultQueryParams?: {[key: string]: any};
@@ -61,6 +64,14 @@ interface GooseRESTOptions<T> {
   maxLimit?: number; // defaults to 500
   endpoints?: (router: any) => void;
 }
+
+export const OwnerQueryFilter = (user?: User) => {
+  if (user) {
+    return {ownerId: user?.id};
+  }
+  // Return a null so we know to return no results.
+  return null;
+};
 
 export const Permissions = {
   IsAuthenticatedOrReadOnly: (method: RESTMethod, user?: User) => {
@@ -147,8 +158,62 @@ export function tokenPlugin(schema: Schema) {
   });
 }
 
+export interface BaseUser {
+  admin: boolean;
+  email: string;
+}
+export function baseUserPlugin(schema: Schema) {
+  schema.add({admin: {type: Boolean, default: false}});
+  schema.add({email: {type: String, index: true}});
+}
+
+export interface IsDeleted {
+  deleted: boolean;
+}
+export function isDeletedPlugin(schema: Schema, defaultValue = false) {
+  schema.add({deleted: {type: Boolean, default: defaultValue, index: true}});
+  schema.pre("find", function() {
+    const query = this.getQuery();
+    if (query && query.deleted === undefined) {
+      this.where({deleted: {$ne: true}});
+    }
+  });
+}
+
+export interface CreatedDeleted {
+  updated: Date;
+  created: Date;
+}
+export function createdDeletedPlugin(schema: Schema) {
+  schema.add({updated: {type: Date, index: true}});
+  schema.add({created: {type: Date, index: true}});
+
+  schema.pre("save", function(next) {
+    if (this.disablecreatedDeletedPlugin === true) {
+      next();
+      return;
+    }
+    // If we aren't specifying created, use now.
+    if (!this.created) {
+      this.created = new Date();
+    }
+    // All writes update updated.
+    this.updated = new Date();
+    next();
+  });
+
+  schema.pre("update", function(next) {
+    this.update({}, {$set: {updated: new Date()}});
+    next();
+  });
+}
+
 export function firebaseJWTPlugin(schema: Schema) {
   schema.add({firebaseId: {type: String, index: true}});
+}
+
+export function authenticateMiddleware() {
+  return passport.authenticate(["jwt", "anonymous"], {session: false});
 }
 
 // TODO allow customization
@@ -162,6 +227,8 @@ export function setupAuth(
     jwtIssuer?: string;
   }
 ) {
+  passport.use(new AnonymousStrategy());
+
   if (!userModel.createStrategy) {
     throw new Error("setupAuth userModel must have .createStrategy()");
   }
@@ -184,9 +251,11 @@ export function setupAuth(
 
     const jwtOpts = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme("Bearer"),
+      secretOrKey: options.jwtSecret,
+      issuer: options.jwtIssuer,
     };
     passport.use(
-      new FirebaseStrategy(jwtOpts, async function(jwtPayload: any, done: any) {
+      new JwtStrategy(jwtOpts, async function(jwtPayload: any, done: any) {
         let user;
         const payload = jwt.decode(jwtPayload);
         if (!payload) {
@@ -216,7 +285,15 @@ export function setupAuth(
     res.json({data: req.user});
   });
 
-  router.get("/me", passport.authenticate("firebase-jwt", {session: false}), async (req, res) => {
+  router.post("/signup", async function(req: any, res: any) {
+    const user = await userModel.create(req.body);
+    if (!user.token) {
+      res.status(500).send({message: "Token not created"});
+    }
+    res.json({data: {userId: user._id, token: user.token}});
+  });
+
+  router.get("/me", authenticateMiddleware(), async (req, res) => {
     if (!req.user?.id) {
       return res.status(401).send();
     }
@@ -225,12 +302,12 @@ export function setupAuth(
     if (!data) {
       return res.status(404).send();
     }
-    (data as any).id = data._id;
-    console.log("DATA ID", data.id);
-    return res.json({data});
+    const dataObject = data.toObject();
+    (dataObject as any).id = data._id;
+    return res.json({data: dataObject});
   });
 
-  router.patch("/me", passport.authenticate("firebase-jwt", {session: false}), async (req, res) => {
+  router.patch("/me", authenticateMiddleware(), async (req, res) => {
     if (!req.user?.id) {
       return res.status(401).send();
     }
@@ -242,9 +319,9 @@ export function setupAuth(
     // }
     try {
       const data = await userModel.findOneAndUpdate({_id: req.user.id}, req.body, {new: true});
-
-      (data as any).id = data._id;
-      return res.json({data});
+      const dataObject = data.toObject();
+      (dataObject as any).id = data._id;
+      return res.json({data: dataObject});
     } catch (e) {
       return res.status(403).send({message: (e as any).message});
     }
@@ -368,7 +445,12 @@ export function gooseRestRouter<T>(
     }
   }
 
-  router.post("/", async (req, res) => {
+  // Do before the other router options so endpoints take priority.
+  if (options.endpoints) {
+    options.endpoints(router);
+  }
+
+  router.post("/", authenticateMiddleware(), async (req, res) => {
     if (!checkPermissions("create", options.permissions.create, req.user)) {
       return res.status(405).send();
     }
@@ -383,7 +465,7 @@ export function gooseRestRouter<T>(
     return res.json({data: serialize(data, req.user)});
   });
 
-  router.get("/", async (req, res) => {
+  router.get("/", authenticateMiddleware(), async (req, res) => {
     if (!checkPermissions("list", options.permissions.list, req.user)) {
       return res.status(403).send();
     }
@@ -422,7 +504,14 @@ export function gooseRestRouter<T>(
     }
 
     if (options.queryFilter) {
-      query = {...query, ...options.queryFilter(req.user)};
+      const queryFilter = options.queryFilter(req.user);
+
+      // If the query filter returns null specifically, we know this is a query that shouldn't
+      // return any results.
+      if (queryFilter === null) {
+        return res.json({data: []});
+      }
+      query = {...query, ...queryFilter};
     }
 
     let limit = options.defaultLimit ?? 100;
@@ -461,7 +550,7 @@ export function gooseRestRouter<T>(
     }
   });
 
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", authenticateMiddleware(), async (req, res) => {
     if (!checkPermissions("read", options.permissions.read, req.user)) {
       return res.status(405).send();
     }
@@ -479,12 +568,12 @@ export function gooseRestRouter<T>(
     return res.json({data: serialize(data, req.user)});
   });
 
-  router.put("/:id", async (req, res) => {
+  router.put("/:id", authenticateMiddleware(), async (req, res) => {
     // Patch is what we want 90% of the time
     return res.status(500);
   });
 
-  router.patch("/:id", async (req, res) => {
+  router.patch("/:id", authenticateMiddleware(), async (req, res) => {
     if (!checkPermissions("update", options.permissions.update, req.user)) {
       return res.status(405).send();
     }
@@ -509,7 +598,7 @@ export function gooseRestRouter<T>(
     return res.json({data: serialize(doc, req.user)});
   });
 
-  router.delete("/:id", async (req, res) => {
+  router.delete("/:id", authenticateMiddleware(), async (req, res) => {
     if (!checkPermissions("delete", options.permissions.delete, req.user)) {
       return res.status(405).send();
     }
@@ -526,10 +615,6 @@ export function gooseRestRouter<T>(
 
     return res.json({data: serialize(data, req.user)});
   });
-
-  if (options.endpoints) {
-    options.endpoints(router);
-  }
 
   return router;
 }

@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-      # TODO: remove todo branch when testing is finish
-      - todo
 
 jobs:
   build:

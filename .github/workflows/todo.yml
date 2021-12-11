@@ -1,9 +1,10 @@
-name: NPM publish Continuous Deployment workflow
+name: Create Issues from TODOs
 
 on:
   push:
     branches:
       - master
+      # TODO: remove todo branch when testing is finish
       - todo
 
 jobs:

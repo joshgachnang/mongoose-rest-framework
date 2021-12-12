@@ -81,6 +81,9 @@ describe("mongoose rest framework", () => {
     // jest.resetModules(); // Most important - it clears the cache
     process.env = {...OLD_ENV}; // Make a copy
     process.env.TOKEN_SECRET = "secret";
+    process.env.TOKEN_EXPIRES_IN = "30m";
+    process.env.TOKEN_ISSUER = "example.com";
+    process.env.SESSION_SECRET = "session";
   });
 
   afterEach(function() {
@@ -682,6 +685,9 @@ describe("test token auth", function() {
     // jest.resetModules(); // Most important - it clears the cache
     process.env = {...OLD_ENV}; // Make a copy
     process.env.TOKEN_SECRET = "secret";
+    process.env.TOKEN_EXPIRES_IN = "30m";
+    process.env.TOKEN_ISSUER = "example.com";
+    process.env.SESSION_SECRET = "session";
   });
 
   afterEach(function() {

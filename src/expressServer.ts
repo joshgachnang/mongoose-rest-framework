@@ -205,3 +205,50 @@ export async function sendToSlack(text: string, channel = "bots") {
     console.error("Error posting to slack", (e as any).text);
   }
 }
+
+export interface WrapScriptOptions {
+  onFinish?: () => void;
+  terminateTimeout?: number; // in seconds, defaults to 300. Set to 0 to have no termination timeout.
+  slackChannel?: string;
+}
+// Wrap up a script with some helpers, such as catching errors, reporting them to sentry, notifying
+// Slack of runs, etc. Also supports timeouts.
+export async function wrapScript(func: () => Promise<any>, options: WrapScriptOptions = {}) {
+  const name = require.main?.filename
+    .split("/")
+    .slice(-1)[0]
+    .replace(".ts", "");
+  console.log(`Running script ${name}`);
+  sendToSlack(`Running script ${name}`, options.slackChannel);
+
+  if (options.terminateTimeout !== 0) {
+    const warnTime = ((options.terminateTimeout ?? 300) / 2) * 1000;
+    const closeTime = (options.terminateTimeout ?? 300) * 1000;
+    setTimeout(() => {
+      const msg = `Script ${name} is taking a while, currently ${warnTime / 1000} seconds`;
+      sendToSlack(msg);
+      console.warn(msg);
+    }, warnTime);
+
+    setTimeout(async () => {
+      const msg = `Script ${name} took too long, exiting`;
+      await sendToSlack(msg);
+      console.error(msg);
+      Sentry.captureException(new Error(`Script ${name} took too long, exiting`));
+      await Sentry.flush();
+      process.exit(2);
+    }, closeTime);
+  }
+
+  let result: any;
+  try {
+    result = await func();
+  } catch (e) {
+    Sentry.captureException(e);
+    console.error(`Error running script ${name}: ${e}\n${(e as Error).stack}`);
+    sendToSlack(`Error running script ${name}: ${e}\n${(e as Error).stack}`);
+    await Sentry.flush();
+    process.exit(1);
+  }
+  sendToSlack(`Success running script ${name}: ${result}`);
+}

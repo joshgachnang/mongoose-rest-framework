@@ -173,9 +173,15 @@ export function setupServer(UserModel: UserModel, addRoutes: AddRoutes) {
 }
 
 // Convenince method to execute cronjobs with an always-running server.
-export function cronjob(name: string, schedule: "hourly" | string, callback: () => void) {
+export function cronjob(
+  name: string,
+  schedule: "hourly" | "minutely" | string,
+  callback: () => void
+) {
   if (schedule === "hourly") {
     schedule = "0 * * * *";
+  } else if (schedule === "minutely") {
+    schedule = "* * * * *";
   }
   console.info(`Adding cronjob ${name}, running at: ${schedule}`);
   try {
@@ -207,7 +213,7 @@ export async function sendToSlack(text: string, channel = "bots") {
 }
 
 export interface WrapScriptOptions {
-  onFinish?: () => void;
+  onFinish?: (result?: any) => void | Promise<void>;
   terminateTimeout?: number; // in seconds, defaults to 300. Set to 0 to have no termination timeout.
   slackChannel?: string;
 }
@@ -243,6 +249,9 @@ export async function wrapScript(func: () => Promise<any>, options: WrapScriptOp
   let result: any;
   try {
     result = await func();
+    if (options.onFinish) {
+      await options.onFinish(result);
+    }
   } catch (e) {
     Sentry.captureException(e);
     console.error(`Error running script ${name}: ${e}\n${(e as Error).stack}`);
@@ -250,5 +259,7 @@ export async function wrapScript(func: () => Promise<any>, options: WrapScriptOp
     await Sentry.flush();
     process.exit(1);
   }
-  sendToSlack(`Success running script ${name}: ${result}`);
+  await sendToSlack(`Success running script ${name}: ${result}`);
+  // Unclear why we have to exit here to prevent the script for continuing to run.
+  process.exit(0);
 }

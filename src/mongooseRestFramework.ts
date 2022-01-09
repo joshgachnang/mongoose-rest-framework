@@ -4,10 +4,10 @@ import session from "express-session";
 import jwt from "jsonwebtoken";
 import mongoose, {Document, Model, ObjectId, Schema} from "mongoose";
 import passport from "passport";
-import {Strategy as JwtStrategy} from "passport-jwt";
 import {Strategy as AnonymousStrategy} from "passport-anonymous";
+import {Strategy as JwtStrategy} from "passport-jwt";
 import {Strategy as LocalStrategy} from "passport-local";
-import {logger} from "./expressServer";
+import {logger} from "./logger";
 
 export interface Env {
   NODE_ENV?: string;

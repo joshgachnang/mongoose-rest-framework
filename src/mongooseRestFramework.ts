@@ -52,8 +52,11 @@ interface User {
 
 export interface UserModel extends Model<User> {
   createStrategy(): any;
+
   serializeUser(): any;
+
   deserializeUser(): any;
+
   createAnonymousUser?: (id?: string) => Promise<User>;
   isValidPassword: (password: string) => boolean;
   // Allows additional setup during signup. This will be passed the rest of req.body from the signup
@@ -196,6 +199,7 @@ export interface BaseUser {
   admin: boolean;
   email: string;
 }
+
 export function baseUserPlugin(schema: Schema) {
   schema.add({admin: {type: Boolean, default: false}});
   schema.add({email: {type: String, index: true}});
@@ -429,6 +433,9 @@ export function setupAuth(app: express.Application, userModel: UserModel) {
     // }
     try {
       const data = await userModel.findOneAndUpdate({_id: req.user.id}, req.body, {new: true});
+      if (data === null) {
+        return res.status(404).send();
+      }
       const dataObject = data.toObject();
       (dataObject as any).id = data._id;
       return res.json({data: dataObject});
@@ -580,7 +587,12 @@ export function gooseRestRouter<T>(
     } catch (e) {
       return res.status(403).send({message: (e as any).message});
     }
-    const data = await model.create(body);
+    let data;
+    try {
+      data = await model.create(body);
+    } catch (e) {
+      return res.status(400).send({message: (e as any).message});
+    }
     return res.json({data: serialize(data, req.user)});
   });
 

@@ -64,6 +64,17 @@ const schema = new Schema<Food>({
 
 const FoodModel = model<Food>("Food", schema);
 
+interface RequiredField {
+  name: string;
+  about?: string;
+}
+
+const requiredSchema = new Schema<RequiredField>({
+  name: {type: String, required: true},
+  about: String,
+});
+const RequiredModel = model<RequiredField>("Required", requiredSchema);
+
 function getBaseServer(): Express {
   const app = express();
 
@@ -135,6 +146,18 @@ describe("mongoose rest framework", () => {
       app.use(
         "/food",
         gooseRestRouter(FoodModel, {
+          permissions: {
+            list: [Permissions.IsAny],
+            create: [Permissions.IsAuthenticated],
+            read: [Permissions.IsAny],
+            update: [Permissions.IsOwner],
+            delete: [Permissions.IsAdmin],
+          },
+        })
+      );
+      app.use(
+        "/required",
+        gooseRestRouter(RequiredModel, {
           permissions: {
             list: [Permissions.IsAny],
             create: [Permissions.IsAuthenticated],
@@ -255,6 +278,7 @@ describe("mongoose rest framework", () => {
     describe("admin food", function() {
       let agent: supertest.SuperAgentTest;
       let token: string;
+
       beforeEach(async function() {
         agent = supertest.agent(app);
         const res = await agent
@@ -304,6 +328,16 @@ describe("mongoose rest framework", () => {
           .delete(`/food/${res.body.data[0]._id}`)
           .set("authorization", `Bearer ${token}`);
         assert.equal(res2.status, 200);
+      });
+
+      it("handles validation errors", async function() {
+        const res = await agent
+          .post("/required")
+          .set("authorization", `Bearer ${token}`)
+          .send({
+            about: "Whoops forgot required",
+          });
+        assert.equal(res.status, 400);
       });
     });
   });

@@ -77,7 +77,7 @@ interface RESTPermissions<T> {
 interface GooseRESTOptions<T> {
   permissions: RESTPermissions<T>;
   queryFields?: string[];
-  // return null to prevent the query from runnning
+  // return null to prevent the query from running
   queryFilter?: (user?: User) => Record<string, any> | null;
   transformer?: GooseTransformer<T>;
   sort?: string | {[key: string]: "ascending" | "descending"};
@@ -86,13 +86,16 @@ interface GooseRESTOptions<T> {
   defaultLimit?: number; // defaults to 100
   maxLimit?: number; // defaults to 500
   endpoints?: (router: any) => void;
+  postCreate?: (value: any, request: express.Request) => void | Promise<void>;
+  postUpdate?: (value: any, request: express.Request) => void | Promise<void>;
+  postDelete?: (request: express.Request) => void | Promise<void>;
 }
 
 export const OwnerQueryFilter = (user?: User) => {
   if (user) {
     return {ownerId: user?.id};
   }
-  // Return a null so we know to return no results.
+  // Return a null, so we know to return no results.
   return null;
 };
 
@@ -101,10 +104,7 @@ export const Permissions = {
     if (user?.id && !user?.isAnonymous) {
       return true;
     }
-    if (method === "list" || method === "read") {
-      return true;
-    }
-    return false;
+    return method === "list" || method === "read";
   },
   IsOwnerOrReadOnly: (method: RESTMethod, user?: User, obj?: any) => {
     // When checking if we can possibly perform the action, return true.
@@ -159,7 +159,7 @@ export function checkPermissions<T>(
 ): boolean {
   let anyTrue = false;
   for (const perm of permissions) {
-    if (perm(method, user, obj) === false) {
+    if (!perm(method, user, obj)) {
       return false;
     } else {
       anyTrue = true;
@@ -237,7 +237,7 @@ export function createdDeletedPlugin(schema: Schema) {
     if (!this.created) {
       this.created = new Date();
     }
-    // All writes update updated.
+    // All writes change the updated time.
     this.updated = new Date();
     next();
   });
@@ -282,7 +282,7 @@ export function setupAuth(app: express.Application, userModel: UserModel) {
           }
           await user.save();
           if (!user.token) {
-            throw new Error("Token not created");
+            return done(new Error("Token not created"));
           }
           return done(null, user);
         } catch (error) {
@@ -593,6 +593,13 @@ export function gooseRestRouter<T>(
     } catch (e) {
       return res.status(400).send({message: (e as any).message});
     }
+    if (options.postCreate) {
+      try {
+        await options.postCreate(data, req);
+      } catch (e) {
+        return res.status(400).send({message: `Post Create error: ${(e as any).message}`});
+      }
+    }
     return res.json({data: serialize(data, req.user)});
   });
 
@@ -670,7 +677,7 @@ export function gooseRestRouter<T>(
     try {
       data = await builtQuery.exec();
     } catch (e) {
-      logger.error("List error", e);
+      logger.error(`List error: ${(e as any).stack}`);
       return res.status(500).send();
     }
     // TODO add pagination
@@ -731,7 +738,20 @@ export function gooseRestRouter<T>(
       logger.warn(`Patch failed for user ${req.user?.id}: ${(e as any).message}`);
       return res.status(403).send({message: (e as any).message});
     }
-    doc = await model.findOneAndUpdate({_id: req.params.id}, body, {new: true});
+
+    try {
+      doc = await model.findOneAndUpdate({_id: req.params.id}, body, {new: true});
+    } catch (e) {
+      return res.status(400).send({message: (e as any).message});
+    }
+
+    if (options.postUpdate) {
+      try {
+        await options.postUpdate(doc, req);
+      } catch (e) {
+        return res.status(400).send({message: `Post Update error: ${(e as any).message}`});
+      }
+    }
     return res.json({data: serialize(doc, req.user)});
   });
 
@@ -750,6 +770,20 @@ export function gooseRestRouter<T>(
     if (!checkPermissions("delete", options.permissions.delete, req.user, data)) {
       logger.warn(`Access to DELETE on ${model.name}:${req.params.id} denied for ${req.user?.id}`);
       return res.status(403).send();
+    }
+
+    try {
+      await data.remove();
+    } catch (e) {
+      return res.status(400).send({message: (e as any).message});
+    }
+
+    if (options.postDelete) {
+      try {
+        await options.postDelete(req);
+      } catch (e) {
+        return res.status(400).send({message: `Post Delete error: ${(e as any).message}`});
+      }
     }
 
     return res.json({data: serialize(data, req.user)});

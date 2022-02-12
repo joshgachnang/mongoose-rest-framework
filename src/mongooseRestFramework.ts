@@ -51,17 +51,18 @@ interface User {
 }
 
 export interface UserModel extends Model<User> {
+  createAnonymousUser?: (id?: string) => Promise<User>;
+  isValidPassword: (password: string) => boolean;
+  // request.
+  postCreate?: (body: any) => Promise<void>;
+
   createStrategy(): any;
 
   serializeUser(): any;
 
-  deserializeUser(): any;
-
-  createAnonymousUser?: (id?: string) => Promise<User>;
-  isValidPassword: (password: string) => boolean;
   // Allows additional setup during signup. This will be passed the rest of req.body from the signup
-  // request.
-  postCreate?: (body: any) => Promise<void>;
+
+  deserializeUser(): any;
 }
 
 type PermissionMethod<T> = (method: RESTMethod, user?: User, obj?: T) => boolean;
@@ -86,6 +87,9 @@ interface GooseRESTOptions<T> {
   defaultLimit?: number; // defaults to 100
   maxLimit?: number; // defaults to 500
   endpoints?: (router: any) => void;
+  preCreate?: (value: any, request: express.Request) => T | null;
+  preUpdate?: (value: any, request: express.Request) => T | null;
+  preDelete?: (value: any, request: express.Request) => T | null;
   postCreate?: (value: any, request: express.Request) => void | Promise<void>;
   postUpdate?: (value: any, request: express.Request) => void | Promise<void>;
   postDelete?: (request: express.Request) => void | Promise<void>;
@@ -118,10 +122,7 @@ export const Permissions = {
     if (user?.id && obj?.ownerId && String(obj?.ownerId) === String(user?.id)) {
       return true;
     }
-    if (method === "list" || method === "read") {
-      return true;
-    }
-    return false;
+    return method === "list" || method === "read";
   },
   IsAny: () => {
     return true;
@@ -189,7 +190,7 @@ export function tokenPlugin(schema: Schema, options: {expiresIn?: number} = {}) 
       }
       this.token = jwt.sign({id: this._id.toString()}, secretOrKey, tokenOptions);
     }
-    // On any save, update updated.
+    // On any save, update the updated field.
     this.updated = new Date();
     next();
   });
@@ -587,6 +588,16 @@ export function gooseRestRouter<T>(
     } catch (e) {
       return res.status(403).send({message: (e as any).message});
     }
+    if (options.preCreate) {
+      try {
+        body = options.preCreate(body, req);
+      } catch (e) {
+        return res.status(400).send({message: `Pre Create error: ${(e as any).message}`});
+      }
+      if (body === null) {
+        return res.status(403).send({message: "Pre Create returned null"});
+      }
+    }
     let data;
     try {
       data = await model.create(body);
@@ -600,7 +611,7 @@ export function gooseRestRouter<T>(
         return res.status(400).send({message: `Post Create error: ${(e as any).message}`});
       }
     }
-    return res.json({data: serialize(data, req.user)});
+    return res.status(201).json({data: serialize(data, req.user)});
   });
 
   router.get("/", authenticateMiddleware(true), async (req, res) => {
@@ -739,8 +750,19 @@ export function gooseRestRouter<T>(
       return res.status(403).send({message: (e as any).message});
     }
 
+    if (options.preUpdate) {
+      try {
+        body = options.preUpdate(body, req);
+      } catch (e) {
+        return res.status(400).send({message: `Pre Update error: ${(e as any).message}`});
+      }
+      if (body === null) {
+        return res.status(403).send({message: "Pre Update returned null"});
+      }
+    }
+
     try {
-      doc = await model.findOneAndUpdate({_id: req.params.id}, body, {new: true});
+      doc = await model.findOneAndUpdate({_id: req.params.id}, body as any, {new: true});
     } catch (e) {
       return res.status(400).send({message: (e as any).message});
     }
@@ -772,6 +794,17 @@ export function gooseRestRouter<T>(
       return res.status(403).send();
     }
 
+    if (options.preDelete) {
+      try {
+        const body = options.preDelete(data, req);
+        if (body === null) {
+          return res.status(403).send({message: "Pre Delete returned null"});
+        }
+      } catch (e) {
+        return res.status(400).send({message: `Pre Delete error: ${(e as any).message}`});
+      }
+    }
+
     try {
       await data.remove();
     } catch (e) {
@@ -786,7 +819,7 @@ export function gooseRestRouter<T>(
       }
     }
 
-    return res.json({data: serialize(data, req.user)});
+    return res.status(204).send();
   });
 
   return router;

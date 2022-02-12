@@ -189,7 +189,7 @@ export function setupServer(options: SetupServerOptions) {
   return app;
 }
 
-// Convenince method to execute cronjobs with an always-running server.
+// Convenience method to execute cronjobs with an always-running server.
 export function cronjob(
   name: string,
   schedule: "hourly" | "minutely" | string,

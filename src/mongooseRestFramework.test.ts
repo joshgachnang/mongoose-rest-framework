@@ -96,6 +96,21 @@ afterAll(() => {
   mongoose.connection.close();
 });
 
+async function setupDb() {
+  await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
+  const [notAdmin, admin] = await Promise.all([
+    UserModel.create({email: "notAdmin@example.com"}),
+    UserModel.create({email: "admin@example.com", admin: true}),
+  ]);
+  await (notAdmin as any).setPassword("password");
+  await notAdmin.save();
+
+  await (admin as any).setPassword("securePassword");
+  await admin.save();
+
+  return [admin, notAdmin];
+}
+
 describe("mongoose rest framework", () => {
   let server: supertest.SuperTest<supertest.Test>;
   let app: express.Application;
@@ -117,16 +132,7 @@ describe("mongoose rest framework", () => {
   describe("pre and post hooks", function() {
     let app: any;
     beforeEach(async function() {
-      await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
-      const [notAdmin, admin] = await Promise.all([
-        UserModel.create({email: "notAdmin@example.com"}),
-        UserModel.create({email: "admin@example.com", admin: true}),
-      ]);
-      await (notAdmin as any).setPassword("password");
-      await notAdmin.save();
-
-      await (admin as any).setPassword("securePassword");
-      await admin.save();
+      await setupDb();
       app = getBaseServer();
       setupAuth(app, UserModel as any);
     });
@@ -304,16 +310,7 @@ describe("mongoose rest framework", () => {
 
   describe("permissions", function() {
     beforeEach(async function() {
-      await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
-      const [notAdmin, admin] = await Promise.all([
-        UserModel.create({email: "notAdmin@example.com"}),
-        UserModel.create({email: "admin@example.com", admin: true}),
-      ]);
-      await (notAdmin as any).setPassword("password");
-      await notAdmin.save();
-
-      await (admin as any).setPassword("securePassword");
-      await admin.save();
+      const [admin, notAdmin] = await setupDb();
 
       await Promise.all([
         FoodModel.create({
@@ -535,16 +532,7 @@ describe("mongoose rest framework", () => {
     let admin: any;
 
     beforeEach(async function() {
-      await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
-      [notAdmin, admin] = await Promise.all([
-        UserModel.create({email: "notAdmin@example.com"}),
-        UserModel.create({email: "admin@example.com", admin: true}),
-      ]);
-      await (notAdmin as any).setPassword("password");
-      await notAdmin.save();
-
-      await (admin as any).setPassword("securePassword");
-      await admin.save();
+      [admin, notAdmin] = await setupDb();
 
       await Promise.all([
         FoodModel.create({
@@ -812,16 +800,7 @@ describe("mongoose rest framework", () => {
     let admin: any;
 
     beforeEach(async function() {
-      await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
-      [notAdmin, admin] = await Promise.all([
-        UserModel.create({email: "notAdmin@example.com"}),
-        UserModel.create({email: "admin@example.com", admin: true}),
-      ]);
-      await (notAdmin as any).setPassword("password");
-      await notAdmin.save();
-
-      await (admin as any).setPassword("securePassword");
-      await admin.save();
+      [admin, notAdmin] = await setupDb();
 
       [spinach, apple, carrots, pizza] = await Promise.all([
         FoodModel.create({

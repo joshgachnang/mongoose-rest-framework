@@ -619,6 +619,7 @@ export function gooseRestRouter<T>(
     return res.status(201).json({data: serialize(data, req.user)});
   });
 
+  // TODO add rate limit
   router.get("/", authenticateMiddleware(true), async (req, res) => {
     if (!(await checkPermissions("list", options.permissions.list, req.user))) {
       logger.warn(`Access to LIST on ${model.name} denied for ${req.user?.id}`);

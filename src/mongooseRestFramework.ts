@@ -65,7 +65,11 @@ export interface UserModel extends Model<User> {
   deserializeUser(): any;
 }
 
-type PermissionMethod<T> = (method: RESTMethod, user?: User, obj?: T) => boolean;
+export type PermissionMethod<T> = (
+  method: RESTMethod,
+  user?: User,
+  obj?: T
+) => boolean | Promise<boolean>;
 
 interface RESTPermissions<T> {
   create: PermissionMethod<T>[];
@@ -152,15 +156,16 @@ export const Permissions = {
 };
 
 // Defaults closed
-export function checkPermissions<T>(
+export async function checkPermissions<T>(
   method: RESTMethod,
   permissions: PermissionMethod<T>[],
   user?: User,
   obj?: T
-): boolean {
+): Promise<boolean> {
   let anyTrue = false;
   for (const perm of permissions) {
-    if (!perm(method, user, obj)) {
+    // May or may not be a promise.
+    if (!(await perm(method, user, obj))) {
       return false;
     } else {
       anyTrue = true;
@@ -577,7 +582,7 @@ export function gooseRestRouter<T>(
 
   // TODO Toggle anonymous auth middleware based on settings for route.
   router.post("/", authenticateMiddleware(true), async (req, res) => {
-    if (!checkPermissions("create", options.permissions.create, req.user)) {
+    if (!(await checkPermissions("create", options.permissions.create, req.user))) {
       logger.warn(`Access to CREATE on ${model.name} denied for ${req.user?.id}`);
       return res.status(405).send();
     }
@@ -615,7 +620,7 @@ export function gooseRestRouter<T>(
   });
 
   router.get("/", authenticateMiddleware(true), async (req, res) => {
-    if (!checkPermissions("list", options.permissions.list, req.user)) {
+    if (!(await checkPermissions("list", options.permissions.list, req.user))) {
       logger.warn(`Access to LIST on ${model.name} denied for ${req.user?.id}`);
       return res.status(403).send();
     }
@@ -701,7 +706,7 @@ export function gooseRestRouter<T>(
   });
 
   router.get("/:id", authenticateMiddleware(true), async (req, res) => {
-    if (!checkPermissions("read", options.permissions.read, req.user)) {
+    if (!(await checkPermissions("read", options.permissions.read, req.user))) {
       logger.warn(`Access to READ on ${model.name} denied for ${req.user?.id}`);
       return res.status(405).send();
     }
@@ -712,7 +717,7 @@ export function gooseRestRouter<T>(
       return res.status(404).send();
     }
 
-    if (!checkPermissions("read", options.permissions.read, req.user, data)) {
+    if (!(await checkPermissions("read", options.permissions.read, req.user, data))) {
       logger.warn(`Access to READ on ${model.name}:${req.params.id} denied for ${req.user?.id}`);
       return res.status(403).send();
     }
@@ -726,7 +731,7 @@ export function gooseRestRouter<T>(
   });
 
   router.patch("/:id", authenticateMiddleware(true), async (req, res) => {
-    if (!checkPermissions("update", options.permissions.update, req.user)) {
+    if (!(await checkPermissions("update", options.permissions.update, req.user))) {
       logger.warn(`Access to PATCH on ${model.name} denied for ${req.user?.id}`);
       return res.status(405).send();
     }
@@ -737,7 +742,7 @@ export function gooseRestRouter<T>(
       return res.status(404).send();
     }
 
-    if (!checkPermissions("update", options.permissions.update, req.user, doc)) {
+    if (!(await checkPermissions("update", options.permissions.update, req.user, doc))) {
       logger.warn(`Patch not allowed for user ${req.user?.id} on doc ${doc._id}`);
       return res.status(403).send();
     }
@@ -778,7 +783,7 @@ export function gooseRestRouter<T>(
   });
 
   router.delete("/:id", authenticateMiddleware(true), async (req, res) => {
-    if (!checkPermissions("delete", options.permissions.delete, req.user)) {
+    if (!(await checkPermissions("delete", options.permissions.delete, req.user))) {
       logger.warn(`Access to DELETE on ${model.name} denied for ${req.user?.id}`);
       return res.status(405).send();
     }
@@ -789,7 +794,7 @@ export function gooseRestRouter<T>(
       return res.status(404).send();
     }
 
-    if (!checkPermissions("delete", options.permissions.delete, req.user, data)) {
+    if (!(await checkPermissions("delete", options.permissions.delete, req.user, data))) {
       logger.warn(`Access to DELETE on ${model.name}:${req.params.id} denied for ${req.user?.id}`);
       return res.status(403).send();
     }

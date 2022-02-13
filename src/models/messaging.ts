@@ -131,7 +131,6 @@ export function messagePlugin(messageSchema: Schema) {
       const res = await axios.post("https://exp.host/--/api/v2/push/getReceipts", {
         ids,
       });
-      console.log("RECEIPTS", res.data);
 
       for (const ticketId of Object.keys(res.data.data)) {
         const receipt = res.data.data[ticketId];
@@ -235,19 +234,14 @@ export function conversationPlugin(conversationSchema: Schema) {
     async _sendPushNotifications(message: MessageDocument, members: ConversationMember[]) {
       const pushNotificationData: any = [];
       const pushMembers: ConversationMember[] = [];
-      console.log("MEMBERS", members);
       for (const member of members) {
         const data = this._getExpoPushDataForMember(message, member.userId);
-        console.log("DATA", data, message, member);
         if (data === null) {
-          console.log("NULL");
           continue;
         }
         pushNotificationData.push(data);
         pushMembers.push(member);
-        console.log("PUSHED");
       }
-      console.log("PUSH DATA", pushNotificationData);
       let tickets: ExpoPushTicket[] = [];
       try {
         tickets = (await expo.sendPushNotificationsAsync(pushNotificationData)) as ExpoPushTicket[];
@@ -333,7 +327,6 @@ export function conversationPlugin(conversationSchema: Schema) {
 
     // Private method to build the data to send to Expo for a push notification.
     _getExpoPushDataForMember(message: MessageDocument, member: any) {
-      console.log("MEMBER");
       const pushToken = member.expoToken;
 
       if (!pushToken) {

@@ -117,6 +117,16 @@ describe("mongoose rest framework", () => {
   describe("pre and post hooks", function() {
     let app: any;
     beforeEach(async function() {
+      await Promise.all([UserModel.deleteMany({}), FoodModel.deleteMany({})]);
+      const [notAdmin, admin] = await Promise.all([
+        UserModel.create({email: "notAdmin@example.com"}),
+        UserModel.create({email: "admin@example.com", admin: true}),
+      ]);
+      await (notAdmin as any).setPassword("password");
+      await notAdmin.save();
+
+      await (admin as any).setPassword("securePassword");
+      await admin.save();
       app = getBaseServer();
       setupAuth(app, UserModel as any);
     });

@@ -154,7 +154,7 @@ function initializeRoutes(UserModel: UserMongooseModel, addRoutes: AddRoutes) {
 }
 
 export interface SetupServerOptions {
-  userModel: UserModel;
+  userModel: UserMongooseModel;
   addRoutes: AddRoutes;
   loggingOptions?: LoggingOptions;
   skipListen?: boolean;

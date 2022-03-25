@@ -53,8 +53,6 @@ interface User {
 
 export interface UserModel extends Model<User> {
   createAnonymousUser?: (id?: string) => Promise<User>;
-  isValidPassword: (password: string) => boolean;
-  // request.
   postCreate?: (body: any) => Promise<void>;
 
   createStrategy(): any;
@@ -62,7 +60,6 @@ export interface UserModel extends Model<User> {
   serializeUser(): any;
 
   // Allows additional setup during signup. This will be passed the rest of req.body from the signup
-
   deserializeUser(): any;
 }
 
